@@ -1,0 +1,51 @@
+id: code-analysis
+namespace: futureproof
+
+inputs:
+  - id: project_id
+    type: INT
+    defaults: 1
+  - id: repo_path
+    type: STRING
+  - id: language
+    type: STRING
+
+tasks:
+  - id: start_analysis
+    type: io.kestra.plugin.core.log.Log
+    message: "Starting code analysis for project {{ inputs.project_id }}"
+
+  - id: extract_metrics
+    type: io.kestra.plugin.scripts.python.Script
+    script: |
+      import os
+      import json
+      
+      repo_path = "{{ inputs.repo_path }}"
+      
+      # Count files and lines
+      total_files = 0
+      total_lines = 0
+      
+      for root, dirs, files in os.walk(repo_path):
+          for file in files:
+              if file.endswith(('.py', '.js', '.java', '.go')):
+                  total_files += 1
+                  try:
+                      with open(os.path.join(root, file), 'r') as f:
+                          total_lines += len(f.readlines())
+                  except:
+                      pass
+      
+      print(json.dumps({
+          "total_files": total_files,
+          "total_lines": total_lines
+      }))
+
+  - id: log_metrics
+    type: io.kestra.plugin.core.log.Log
+    message: "Found {{ outputs.extract_metrics.vars.total_files }} files with {{ outputs.extract_metrics.vars.total_lines }} lines"
+
+outputs:
+  - id: metrics
+    value: "{{ outputs.extract_metrics.vars }}"

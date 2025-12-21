@@ -1,0 +1,172 @@
+# services:
+#   postgres:
+#     image: postgres:15-alpine
+#     container_name: futureproof-postgres
+#     environment:
+#       POSTGRES_USER: postgres
+#       POSTGRES_PASSWORD: postgres
+#       POSTGRES_DB: futureproof_db
+#     volumes:
+#       - postgres_data:/var/lib/postgresql/data
+#     ports:
+#       - "5432:5432"
+#     healthcheck:
+#       test: ["CMD-SHELL", "pg_isready -U postgres"]
+#       interval: 10s
+#       timeout: 5s
+#       retries: 5
+
+#   redis:
+#     image: redis:7-alpine
+#     container_name: futureproof-redis
+#     ports:
+#       - "6379:6379"
+#     healthcheck:
+#       test: ["CMD", "redis-cli", "ping"]
+#       interval: 10s
+#       timeout: 5s
+#       retries: 5
+
+#   kestra:
+#     image: kestra/kestra:latest
+#     container_name: futureproof-kestra
+#     environment:
+#       KESTRA_CONFIGURATION: |
+#         datasources:
+#           postgres:
+#             url: jdbc:postgresql://postgres:5432/futureproof_db
+#             driverClassName: org.postgresql.Driver
+#             username: postgres
+#             password: postgres
+        
+#         flyway:
+#           datasources:
+#             postgres:
+#               baseline-on-migrate: true
+        
+#         kestra:
+#           repository:
+#             type: postgres
+          
+#           queue:
+#             type: postgres
+          
+#           storage:
+#             type: local
+#             local:
+#               base-path: /app/storage
+          
+#           server:
+#             basic-auth:
+#               enabled: false
+          
+#           url: http://localhost:8080/
+    
+#     depends_on:
+#       postgres:
+#         condition: service_healthy
+#     ports:
+#       - "8080:8080"
+#     volumes:
+#       - ./kestra/workflows:/app/workflows
+#       - kestra_data:/app/storage
+#     command: server standalone
+
+#   backend:
+#     build: .
+#     container_name: futureproof-backend
+#     env_file:
+#       - .env
+#     ports:
+#       - "8000:8000"
+#     volumes:
+#       - .:/app
+#       - /app/__pycache__
+#     depends_on:
+#       postgres:
+#         condition: service_healthy
+#       redis:
+#         condition: service_healthy
+#       kestra:
+#         condition: service_started
+#     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+# volumes:
+#   postgres_data:
+#   kestra_data:
+# Remove the first line: version: '3.9'
+# Docker Compose no longer requires version
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: futureproof-db
+    environment:
+      POSTGRES_USER: futureproof
+      POSTGRES_PASSWORD: futureproof123
+      POSTGRES_DB: futureproof
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U futureproof"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - futureproof-network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: futureproof-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://futureproof:futureproof123@db:5432/futureproof
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - ENVIRONMENT=development
+      - DEBUG=true
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app
+      - ./alembic:/app/alembic
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - futureproof-network
+    restart: unless-stopped
+
+  # Redis (optional, for future caching)
+  redis:
+    image: redis:7-alpine
+    container_name: futureproof-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - futureproof-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  futureproof-network:
+    driver: bridge

@@ -1,0 +1,153 @@
+id: multi-agent-analysis
+namespace: futureproof
+
+description: "Multi-agent orchestration workflow for code analysis"
+
+inputs:
+  - id: project_id
+    type: INT
+  - id: repo_path
+    type: STRING
+  - id: code_data
+    type: JSON
+
+tasks:
+  - id: initialize
+    type: io.kestra.plugin.core.log.Log
+    message: "Initializing multi-agent analysis for project {{ inputs.project_id }}"
+
+  # Run 4 agents in parallel
+  - id: parallel_agents
+    type: io.kestra.plugin.core.flow.Parallel
+    tasks:
+      # Security Agent
+      - id: security_analysis
+        type: io.kestra.plugin.ai.Agent
+        description: "Security vulnerability analysis"
+        model: groq/llama-3.1-70b-versatile
+        prompt: |
+          Analyze the following codebase for security vulnerabilities:
+          
+          Project ID: {{ inputs.project_id }}
+          Language: {{ inputs.code_data.language }}
+          Total Files: {{ inputs.code_data.total_files }}
+          
+          Focus on:
+          - SQL injection risks
+          - XSS vulnerabilities
+          - Hardcoded secrets
+          - Insecure cryptography
+          
+          Return JSON with: vulnerabilities (list), severity, recommendations
+        tools:
+          - type: web_search
+          - type: code_analyzer
+        memory: true
+        temperature: 0.3
+
+      # Performance Agent
+      - id: performance_analysis
+        type: io.kestra.plugin.ai.Agent
+        description: "Performance bottleneck analysis"
+        model: groq/llama-3.1-70b-versatile
+        prompt: |
+          Analyze code performance for project {{ inputs.project_id }}:
+          
+          Language: {{ inputs.code_data.language }}
+          Framework: {{ inputs.code_data.framework }}
+          
+          Identify:
+          - N+1 query problems
+          - Inefficient loops
+          - Memory leaks
+          - Blocking I/O operations
+          
+          Return JSON with: bottlenecks (list), optimizations, expected_improvement
+        memory: true
+        temperature: 0.3
+
+      # Architecture Agent
+      - id: architecture_analysis
+        type: io.kestra.plugin.ai.Agent
+        description: "Architecture review"
+        model: groq/llama-3.1-70b-versatile
+        prompt: |
+          Review architecture for project {{ inputs.project_id }}:
+          
+          Files: {{ inputs.code_data.total_files }}
+          Language: {{ inputs.code_data.language }}
+          
+          Evaluate:
+          - Project structure
+          - Design patterns
+          - Modularity
+          - Scalability
+          
+          Return JSON with: patterns_used, issues, improvements
+        memory: true
+        temperature: 0.3
+
+      # Dependency Agent
+      - id: dependency_analysis
+        type: io.kestra.plugin.ai.Agent
+        description: "Dependency analysis"
+        model: groq/llama-3.1-70b-versatile
+        prompt: |
+          Analyze dependencies for project {{ inputs.project_id }}:
+          
+          Framework: {{ inputs.code_data.framework }}
+          
+          Check for:
+          - Outdated packages
+          - Security vulnerabilities in dependencies
+          - Deprecated libraries
+          
+          Return JSON with: outdated (list), vulnerabilities, recommendations
+        memory: true
+        temperature: 0.3
+
+  # Synthesize results
+  - id: synthesize_results
+    type: io.kestra.plugin.core.flow.Sequential
+    tasks:
+      - id: aggregate_findings
+        type: io.kestra.plugin.scripts.python.Script
+        script: |
+          import json
+          
+          # Get agent results
+          security = {{ outputs.security_analysis.response }}
+          performance = {{ outputs.performance_analysis.response }}
+          architecture = {{ outputs.architecture_analysis.response }}
+          dependency = {{ outputs.dependency_analysis.response }}
+          
+          # Calculate overall score
+          scores = [
+              security.get('score', 0),
+              performance.get('score', 0),
+              architecture.get('score', 0),
+              dependency.get('score', 0)
+          ]
+          
+          overall = sum(scores) / len(scores) if scores else 0
+          
+          results = {
+              "overall_score": overall,
+              "security": security,
+              "performance": performance,
+              "architecture": architecture,
+              "dependency": dependency,
+              "timestamp": "{{ now() }}"
+          }
+          
+          print(json.dumps(results))
+
+  - id: complete
+    type: io.kestra.plugin.core.log.Log
+    message: "Multi-agent analysis completed with overall score: {{ outputs.aggregate_findings.vars.overall_score }}"
+
+outputs:
+  - id: analysis_results
+    value: "{{ outputs.aggregate_findings.vars }}"
+  - id: overall_score
+    value: "{{ outputs.aggregate_findings.vars.overall_score }}"

@@ -1,0 +1,58 @@
+# FastAPI Framework
+fastapi[all]==0.110.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.9
+
+# Pydantic
+pydantic==2.6.0
+pydantic-settings==2.1.0
+
+# Database
+sqlalchemy==2.0.25
+alembic==1.13.1
+psycopg2-binary==2.9.9
+asyncpg==0.29.0
+
+# Redis & Task Queue
+redis==5.0.1
+celery==5.3.6
+
+# HTTP Clients
+httpx==0.26.0
+aiohttp==3.9.1
+requests==2.31.0
+
+# AI/ML
+groq==0.4.1
+openai==1.10.0
+huggingface-hub==0.20.3
+transformers==4.37.2
+
+# Code Analysis
+gitpython==3.1.41
+pygments==2.17.2
+radon==6.0.1
+astunparse==1.6.3
+
+# Utilities
+python-dotenv==1.0.0
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+pyyaml==6.0.1
+jinja2==3.1.3
+
+# Logging
+structlog==24.1.0
+python-json-logger==2.0.7
+
+# Testing - FIXED: Compatible versions
+pytest==7.4.4
+pytest-asyncio==0.23.5
+pytest-cov==4.1.0
+
+# Code Quality
+ruff==0.2.0
+mypy==1.8.0
+autopep8==2.0.4             # ✅ For code formatting
+black==24.1.1                # ✅ Code complexity analysis
+bandit==1.7.6               # ✅ Security analysis

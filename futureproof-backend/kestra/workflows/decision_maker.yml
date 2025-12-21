@@ -1,0 +1,72 @@
+id: decision-maker
+namespace: futureproof
+
+description: "AI decision-making workflow based on agent results"
+
+inputs:
+  - id: project_id
+    type: INT
+  - id: agent_results
+    type: JSON
+
+tasks:
+  - id: ai_decision
+    type: io.kestra.plugin.ai.Agent
+    description: "AI-powered decision maker (Wakanda Data Award - summarizes and decides)"
+    model: groq/llama-3.1-70b-versatile
+    prompt: |
+      You are a technical decision-maker reviewing code analysis results.
+      
+      Project: {{ inputs.project_id }}
+      
+      Agent Results:
+      {{ inputs.agent_results | tojson }}
+      
+      **IMPORTANT: You must make a decision based on this data.**
+      
+      Decision Criteria:
+      - Overall score > 80: APPROVE
+      - Overall score 60-80: NEEDS_WORK
+      - Overall score < 60 or critical issues: CRITICAL_ISSUES
+      
+      Return JSON with:
+      {
+        "decision": "APPROVE | NEEDS_WORK | CRITICAL_ISSUES",
+        "reasoning": "detailed explanation",
+        "confidence": 0.0 to 1.0,
+        "next_steps": ["action1", "action2"],
+        "priority_fixes": ["fix1", "fix2"]
+      }
+    tools:
+      - type: database_query
+      - type: notification
+    memory: true
+    temperature: 0.2
+    max_tokens: 2000
+
+  - id: notify_decision
+    type: io.kestra.plugin.notifications.slack.SlackIncomingWebhook
+    url: "{{ secret('SLACK_WEBHOOK_URL') }}"
+    payload: |
+      {
+        "text": "🤖 FutureProof Decision for Project {{ inputs.project_id }}",
+        "blocks": [
+          {
+            "type": "section",
+            "text": {
+              "type": "mrkdwn",
+              "text": "*Decision:* {{ outputs.ai_decision.response.decision }}\n*Confidence:* {{ outputs.ai_decision.response.confidence }}\n*Reasoning:* {{ outputs.ai_decision.response.reasoning }}"
+            }
+          }
+        ]
+      }
+
+outputs:
+  - id: decision
+    value: "{{ outputs.ai_decision.response.decision }}"
+  - id: reasoning
+    value: "{{ outputs.ai_decision.response.reasoning }}"
+  - id: confidence
+    value: "{{ outputs.ai_decision.response.confidence }}"
+  - id: next_steps
+    value: "{{ outputs.ai_decision.response.next_steps }}"
